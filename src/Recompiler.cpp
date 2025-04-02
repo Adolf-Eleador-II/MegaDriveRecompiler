@@ -91,8 +91,7 @@ void Recompiler::btst(AddressingMode m, u8 xn, u8 bitindex) {
 
     auto [pre, res, post] = get_value(s, m, xn);
 
-    res = std::format("CCZ(({} & {}));", res, Code::imm(1 << bitindex));
-    // res = std::format("ctx->cc.z = (({} & {}) == 0);", res, Code::imm(1 << bitindex));
+    res = std::format("ctx->cc.z=(({}&{})==0);", res, Code::imm(1 << bitindex));
 
     flow_.ctx().writeln(pre + res + post + " // btst");
 }
@@ -334,7 +333,6 @@ void Recompiler::jmp(AddressingMode m, u8 xn) {
 }
 
 void Recompiler::movem(DirectionR d, Size s, AddressingMode m, u8 xn, u16 reg_mask) { ///
-    // NOT_IMPLEMENTED
     auto [pre, src, post] = get_value(s, m, xn);
     std::string val, dst;
 
@@ -692,15 +690,27 @@ void Recompiler::lsd(RotationDirection d, AddressingMode m, u8 xn) {///
     flow_.ctx().writeln(pre + res + flag_c + flags + post + " // lsd ");
 }
 
-void Recompiler::rox(RotationDirection d, AddressingMode m, u8 xn) { NOT_IMPLEMENTED }
+void Recompiler::rox(RotationDirection d, AddressingMode m, u8 xn) { ///
+    auto [pre, res, post] = upd_value(Size::Word, m, xn,"");
+  
+    std::string op = d == RotationDirection::Left ? "<<" : ">>";
+    std::string op_ = d == RotationDirection::Left ? ">>" : "<<";
+    
+    std::string flag_xc = std::format("ctx->cc.x={2}; RES({0}); ctx->cc.c={1}; " , res , d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> {} & 0b1)", Code::get_u8_sizeof_size(Size::Word) - 1) , d == RotationDirection::Right ? "ctx->res & 0b1" : std::format("(ctx->res >> {} & 0b1)", Code::get_u8_sizeof_size(Size::Word) - 1));
+                res = std::format("RES({0}); {0} = ({0}{1}1) | (ctx->cc.x<<({4}-1)) | ({0}{2}{3}); ", res, op, op_, Code::get_u8_sizeof_size(Size::Word), d == RotationDirection::Left ? 1 : Code::get_u8_sizeof_size(Size::Word));
+
+    std::string flags =  std::format("CCN(); CCZ(); ctx->cc.v=0;");
+  
+    flow_.ctx().writeln(pre + res + flag_xc + flags + post + " // rox ");
+}
 
 void Recompiler::rod(RotationDirection d, AddressingMode m, u8 xn) { ///
     auto [pre, res, post] = upd_value(Size::Word, m, xn,"");
   
     std::string op = d == RotationDirection::Left ? "<<" : ">>";
     std::string op_ = d == RotationDirection::Left ? ">>" : "<<";
-                res = std::format("{0} = ({0} {1} 1) | ({0} {2} {3}); ", res, op, op_, Code::get_u8_sizeof_size(Size::Word)-1);
     std::string flag_c = std::format("RES({}); ctx->cc.c={};", res, d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> ({} & 0b1))", Code::get_u8_sizeof_size(Size::Word) - 1));
+                res = std::format("{0} = ({0} {1} 1) | ({0} {2} {3}); ", res, op, op_, Code::get_u8_sizeof_size(Size::Word)-1);
     std::string flags =  std::format("CCN(); CCZ(); ctx->cc.v=0;");
   
     flow_.ctx().writeln(pre + res + flag_c + flags + post + " // rod ");
@@ -748,22 +758,24 @@ void Recompiler::lsd_rotation(u8 rotation, RotationDirection d, Size s, Rotation
     flow_.ctx().writeln(res + flag_c + flags + std::format(" // lsd_rotation {}",rotation));
 }
 
-void Recompiler::rox_rotation(u8 rotation, RotationDirection d, Size s, Rotation m, u8 dn) {
-    if (rotation == 0)
-        rotation = 8;
-
-    std::string rot_value;
-
-    switch (m) {
-        case Rotation::Immediate: rot_value = std::format("{}", rotation); break;
-        case Rotation::Register: rot_value = std::format("({} % 64)", Code::dn(rotation)); break;
+void Recompiler::rox_rotation(u8 rotation, RotationDirection d, Size s, Rotation m, u8 dn) { ///
+    std::string count_shift;
+    if (m == Rotation::Immediate)
+        count_shift = std::format("{}", rotation ? rotation : 8);
+    else {
+        if(s == Size::Long)
+            count_shift = std::format("{}", Code::dn(rotation));
+        else
+            count_shift = std::format("({} % 64)", Code::dn(rotation));
     }
+  
+    std::string op = d == RotationDirection::Left ? "<<" : ">>";
+    std::string op_ = d == RotationDirection::Left ? ">>" : "<<";
+    std::string res = std::format("RES({0}); {0} = ({0}{1}{2}) | (ctx->cc.x<<({5}-1)) | ({0}{3}({4}-{2}+1)); ", Code::dn(dn), op, count_shift, op_, Code::get_u8_sizeof_size(s), d == RotationDirection::Left ? count_shift : std::format("{}-{}+1", Code::get_u8_sizeof_size(s), count_shift));
+    std::string flag_xc = std::format("ctx->cc.x={2}; RES({0}); ctx->cc.c={1}; " , Code::dn(dn) , d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> {} & 0b1)", Code::get_u8_sizeof_size(s) - 1) , d == RotationDirection::Right ? "ctx->res & 0b1" : std::format("(ctx->res >> {} & 0b1)", Code::get_u8_sizeof_size(s) - 1));
+    std::string flags =  std::format("CCN(); CCZ(); ctx->cc.v=0;");
 
-    if (d == RotationDirection::Left) {
-        flow_.ctx().writeln(std::format("{0} = ROXL({0}, {1});", Code::dn(dn), rot_value));
-    } else {
-        flow_.ctx().writeln(std::format("{0} = ROXR({0}, {1});", Code::dn(dn), rot_value));
-    }
+    flow_.ctx().writeln(res + flag_xc + flags + std::format(" // rox_rotation {}",rotation));
 }
 
 void Recompiler::rod_rotation(u8 rotation, RotationDirection d, Size s, Rotation m, u8 dn) { ///
@@ -784,7 +796,7 @@ void Recompiler::rod_rotation(u8 rotation, RotationDirection d, Size s, Rotation
     std::string flags =  std::format("CCN(); CCZ(); ctx->cc.v=0;");
   
     flow_.ctx().writeln(res + flag_c + flags + std::format(" // rod_rotation {}",rotation));
-  }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
