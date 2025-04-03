@@ -22,33 +22,63 @@ void Recompiler::ori_to_ccr(u8 data) { NOT_IMPLEMENTED }
 
 void Recompiler::ori_to_sr(u16 data) { NOT_IMPLEMENTED }
 
-void Recompiler::ori(Size s, AddressingMode m, u8 xn, u32 data) { NOT_IMPLEMENTED }
+void Recompiler::ori(Size s, AddressingMode m, u8 xn, u32 data) { ///
+    auto [pre, res, post] = upd_value(s, m, xn, std::format(" | {}", Code::imm(data)));
+    std::string flags = std::format("RES({}); CCN(); CCZ(); ctx->cc.v=0; ctx->cc.c=0;", res);
+    flow_.ctx().writeln(pre + res + flags + post + " // ori");
+}
 
 void Recompiler::andi_to_ccr(u8 data) { NOT_IMPLEMENTED }
 
 void Recompiler::andi_to_sr(u16 data) { NOT_IMPLEMENTED }
 
-void Recompiler::andi(Size s, AddressingMode m, u8 xn, u32 data) {
-    auto [pre, res, post] =
-        upd_value(s, m, xn, std::format(" & {}", Code::imm(data)));
-
-    flow_.ctx().writeln(pre + res + post + " // andi");
+void Recompiler::andi(Size s, AddressingMode m, u8 xn, u32 data) { ///
+    auto [pre, res, post] = upd_value(s, m, xn, std::format(" & {}", Code::imm(data)));
+    std::string flags = std::format("RES({}); CCN(); CCZ(); ctx->cc.v=0; ctx->cc.c=0;", res);
+    flow_.ctx().writeln(pre + res + flags + post + " // andi");
 }
 
-void Recompiler::subi(Size s, AddressingMode m, u8 xn, u32 data) {
-    auto [pre, res, post] =
-        upd_value(s, m, xn, std::format(" - {}", Code::imm(data)));
+void Recompiler::subi(Size s, AddressingMode m, u8 xn, u32 data) { ///
+    auto dec = decode_ea(s, m, xn);
+    auto imm = Code::imm(data);
+    auto [_spre, src, _spost] = fmt_get_value(dec);
+    auto [pre, dst, post] = fmt_set_value(dec, src + std::format(" - {}", imm));
 
-    flow_.ctx().writeln(pre + res + post + " // subi");
+    pre += std::format("RES({})",src);
+    std::string flag_cv = std::format(
+        "ctx->cc.v=({1}^{2})&({2}^ctx->res)&(1<<{3}); "
+        "ctx->cc.c=({4}){2}<({4}){0}; "
+    , src, imm, dst, Code::get_u8_sizeof_size(s)-1, Code::get_sizeof_size(s));
+    std::string flags = std::format("RES({}); CCN(); CCZ(); ctx->cc.x=ctx->cc.c;", dst);
+    
+    flow_.ctx().writeln(pre + dst + flag_cv + flags + post + " // subi");
 }
 
-void Recompiler::addi(Size s, AddressingMode m, u8 xn, u32 data) { NOT_IMPLEMENTED }
+void Recompiler::addi(Size s, AddressingMode m, u8 xn, u32 data) { ///
+    auto dec = decode_ea(s, m, xn);
+    auto imm = Code::imm(data);
+    auto [_spre, src, _spost] = fmt_get_value(dec);
+    auto [pre, dst, post] = fmt_set_value(dec, src + std::format(" + {}", imm));
+
+    pre += std::format("RES({})",src);
+    std::string flag_cv = std::format(
+        "ctx->cc.v=({1}^{2})&({2}^ctx->res)&(1<<{3}); "
+        "ctx->cc.c=({4}){2}>({4}){0}; "
+    , src, imm, dst, Code::get_u8_sizeof_size(s)-1, Code::get_sizeof_size(s));
+    std::string flags = std::format("RES({}); CCN(); CCZ(); ctx->cc.x=ctx->cc.c;", dst);
+    
+    flow_.ctx().writeln(pre + dst + flag_cv + flags + post + " // addi");
+}
 
 void Recompiler::eori_to_ccr(u8 data) { NOT_IMPLEMENTED }
 
 void Recompiler::eori_to_sr(u16 data) { NOT_IMPLEMENTED }
 
-void Recompiler::eori(Size s, AddressingMode m, u8 xn, u32 data) { NOT_IMPLEMENTED }
+void Recompiler::eori(Size s, AddressingMode m, u8 xn, u32 data) { ///
+    auto [pre, res, post] = upd_value(s, m, xn, std::format(" ^ {}", Code::imm(data)));
+    std::string flags = std::format("RES({}); CCN(); CCZ(); ctx->cc.v=0; ctx->cc.c=0;", res);
+    flow_.ctx().writeln(pre + res + flags + post + " // eori");
+}
 
 void Recompiler::cmpi(Size s, AddressingMode m, u8 xn, u32 data) {
     std::string res;
