@@ -835,7 +835,7 @@ void Recompiler::roxd(RotationDirection d, AddressingMode m, u8 xn) {
 
     std::string op = d == RotationDirection::Left ? "<<" : ">>";
     std::string op_ = d == RotationDirection::Left ? ">>" : "<<";
-    res = std::format("{0} = ({0} {1} 1) | ({0} {2} {3}) | (ctx->cc.x << {4}); ctx->cc.x = (ctx->res >> ({5})) & 0b1; ",
+    res = std::format("{0} = ({0} {1} 1) | ({0} {2} {3}) | (ctx->cc.x << {4}); ctx->cc.x = (ctx->res >> {5}) & 0b1; ",
         res,
         op,
         op_,
@@ -846,7 +846,7 @@ void Recompiler::roxd(RotationDirection d, AddressingMode m, u8 xn) {
     std::string flag_c = std::format("RES({}); ctx->cc.c={};", res, d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> ({} & 0b1))", Code::get_u8_sizeof_size(Size::Word) - 1));
     std::string flags = std::format("CCN(); CCZ(); ctx->cc.v=0;");
 
-    flow_.ctx().writeln(pre + res + flag_c + flags + post + " // rod ");
+    flow_.ctx().writeln(pre + res + flag_c + flags + post + " // roxd ");
 }
 
 void Recompiler::rod(RotationDirection d, AddressingMode m, u8 xn) {
@@ -855,7 +855,7 @@ void Recompiler::rod(RotationDirection d, AddressingMode m, u8 xn) {
     std::string op = d == RotationDirection::Left ? "<<" : ">>";
     std::string op_ = d == RotationDirection::Left ? ">>" : "<<";
     res = std::format("{0} = ({0} {1} 1) | ({0} {2} {3}); ", res, op, op_, Code::get_u8_sizeof_size(Size::Word) - 1);
-    std::string flag_c = std::format("RES({}); ctx->cc.c={};", res, d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> ({} & 0b1))", Code::get_u8_sizeof_size(Size::Word) - 1));
+    std::string flag_c = std::format("RES({}); ctx->cc.c={}; ", res, d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> ({} & 0b1))", Code::get_u8_sizeof_size(Size::Word) - 1));
     std::string flags = std::format("CCN(); CCZ(); ctx->cc.v=0;");
 
     flow_.ctx().writeln(pre + res + flag_c + flags + post + " // rod ");
@@ -917,16 +917,16 @@ void Recompiler::roxd_rotation(u8 rotation, RotationDirection d, Size s, Rotatio
     std::string pre = std::format("RES({}); ", Code::dn(dn));
     std::string op = d == RotationDirection::Left ? "<<" : ">>";
     std::string op_ = d == RotationDirection::Left ? ">>" : "<<";
-    std::string res = std::format("{0} = ({0} {1} {2}) | ({0} {3} ({4} - {2} + 1)) | (ctx->cc.x << {5}); ctx->cc.x = (ctx->res >> ({6})) & 0b1; ",
+    std::string res = std::format("{0} = ({0} {1} {2}) | ({0} {3} ({4} - {2} + 1)) | (ctx->cc.x << ({5})); ctx->cc.x = (ctx->res >> ({6})) & 0b1; ",
         Code::dn(dn),
         op,
         count_shift,
         op_,
         Code::get_u8_sizeof_size(s),
-        d == RotationDirection::Left ? std::format("({} - 1)", count_shift) : std::format("({} - {})", Code::get_u8_sizeof_size(s), count_shift),
-        d == RotationDirection::Right ? std::format("({} - 1)", count_shift) : std::format("({} - {})", Code::get_u8_sizeof_size(s), count_shift)
+        d == RotationDirection::Left ? std::format("{} - 1", count_shift) : std::format("{} - {}", Code::get_u8_sizeof_size(s), count_shift),
+        d == RotationDirection::Right ? std::format("{} - 1", count_shift) : std::format("{} - {}", Code::get_u8_sizeof_size(s), count_shift)
     );
-    std::string flag_cx = std::format("RES({}); ctx->cc.c={};", Code::dn(dn), d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> {} & 0b1)", Code::get_u8_sizeof_size(s) - 1));
+    std::string flag_cx = std::format("RES({}); ctx->cc.c={}; ", Code::dn(dn), d == RotationDirection::Left ? "ctx->res & 0b1" : std::format("(ctx->res >> {} & 0b1)", Code::get_u8_sizeof_size(s) - 1));
     std::string flags = std::format("CCN(); CCZ(); ctx->cc.v=0;");
 
     flow_.ctx().writeln(pre + res + flag_cx + flags + std::format(" // roxd_rotation {}", rotation));
