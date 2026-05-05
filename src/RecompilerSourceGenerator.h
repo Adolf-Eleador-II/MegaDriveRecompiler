@@ -9,7 +9,7 @@ public:
     RecompilerSourceGenerator(RecompilerFlow &flow) : flow_(flow) {}
 
     void write_to_file() {
-        std::ofstream out("recompiled/recompiled.c");
+        std::ofstream out("../recompiled/recompiled.c");
 
         out << "#include \"context.h\"\n\n";
 
